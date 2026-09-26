@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">CO-OP Family Status</string>
+    <string name="widget_description">Full Party CO-OP status widget.</string>
+    <string name="single_player_widget_description">Slim Player Status Widget (Dynamic Player Selection)</string>
+</resources>
