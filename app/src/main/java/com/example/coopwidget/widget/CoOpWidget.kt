@@ -272,20 +272,11 @@ private fun PlayerCard(
             }
             Spacer(modifier = GlanceModifier.width(6.dp))
             Text(
-                text = player.name.uppercase(),
+                text = "${player.name.uppercase()} - ${player.role.uppercase()}",
                 style = TextStyle(
                     color = androidx.glance.unit.ColorProvider(Color(0xFFF5F7FA)),
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
-                )
-            )
-            Spacer(modifier = GlanceModifier.width(4.dp))
-            Text(
-                text = "• ${player.role}",
-                style = TextStyle(
-                    color = androidx.glance.unit.ColorProvider(Color(0xFF9CA3AF)),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
                 )
             )
             Spacer(modifier = GlanceModifier.defaultWeight())

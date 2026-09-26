@@ -268,17 +268,10 @@ private fun PlayerCardItem(
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = player.name.uppercase(),
+                            text = "${player.name.uppercase()} - ${player.role.uppercase()}",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFF5F7FA)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "• ${player.role}",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF9CA3AF)
                         )
                     }
                     Text(

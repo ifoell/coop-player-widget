@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.glance.GlanceId
 import androidx.glance.GlanceModifier
+import androidx.glance.LocalSize
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -33,6 +34,8 @@ import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import com.example.coopwidget.MainActivity
 import com.example.coopwidget.data.datastore.PartyDataStore
+import com.example.coopwidget.data.datastore.SingleWidgetConfig
+import com.example.coopwidget.data.datastore.WidgetBackgroundStyle
 import com.example.coopwidget.data.datastore.WidgetConfigStore
 import com.example.coopwidget.domain.model.DefaultAccentColors
 import com.example.coopwidget.domain.model.DefaultRoles
@@ -56,11 +59,10 @@ class SinglePlayerWidget : GlanceAppWidget() {
 
         provideContent {
             val partyData by dataStore.partyDataFlow.collectAsState(initial = PartyData())
-            val savedPlayerId by configStore.getPlayerIdForWidgetFlow(appWidgetId).collectAsState(initial = null)
+            val widgetConfig by configStore.getWidgetConfigFlow(appWidgetId).collectAsState(initial = SingleWidgetConfig())
 
-            // Resolve player: match by saved ID -> fallback to matching index -> fallback to first player
-            val playerIndexInList = if (savedPlayerId != null) {
-                partyData.players.indexOfFirst { it.id == savedPlayerId }
+            val playerIndexInList = if (widgetConfig.playerId != null) {
+                partyData.players.indexOfFirst { it.id == widgetConfig.playerId }
             } else -1
 
             val actualIndex = if (playerIndexInList != -1) playerIndexInList else 0
@@ -72,7 +74,9 @@ class SinglePlayerWidget : GlanceAppWidget() {
 
             SinglePlayerWidgetContent(
                 player = targetPlayer,
-                playerIndex = actualIndex
+                playerIndex = actualIndex,
+                bgStyle = widgetConfig.bgStyle,
+                showTagline = widgetConfig.showTagline
             )
         }
     }
@@ -85,15 +89,28 @@ class SinglePlayerWidgetReceiver : GlanceAppWidgetReceiver() {
 @Composable
 fun SinglePlayerWidgetContent(
     player: Player?,
-    playerIndex: Int
+    playerIndex: Int,
+    bgStyle: WidgetBackgroundStyle = WidgetBackgroundStyle.TRANSLUCENT,
+    showTagline: Boolean = true
 ) {
     val pTag = "P${playerIndex + 1}"
     val defaultAccentHex = DefaultAccentColors.getColorForIndex(playerIndex)
+    val accentColor = parseColor(player?.accentColorHex ?: defaultAccentHex, defaultAccentHex)
+
+    val bgColor = when (bgStyle) {
+        WidgetBackgroundStyle.TRANSPARENT -> Color(0x11000000)
+        WidgetBackgroundStyle.TRANSLUCENT -> Color(0xEE090D16)
+        WidgetBackgroundStyle.SOLID_DARK -> Color(0xFF090D16)
+        WidgetBackgroundStyle.ACCENT_TINT -> {
+            val accentInt = player?.accentColorHex?.let { parseColorInt(it) } ?: parseColorInt(defaultAccentHex)
+            Color((accentInt and 0x00FFFFFF) or 0x33000000)
+        }
+    }
 
     Box(
         modifier = GlanceModifier
             .fillMaxSize()
-            .background(Color(0xEE090D16))
+            .background(bgColor)
             .padding(10.dp)
             .clickable(actionStartActivity<MainActivity>())
     ) {
@@ -106,8 +123,8 @@ fun SinglePlayerWidgetContent(
                 Text(
                     text = pTag,
                     style = TextStyle(
-                        color = androidx.glance.unit.ColorProvider(parseColor(defaultAccentHex)),
-                        fontSize = 22.sp,
+                        color = androidx.glance.unit.ColorProvider(accentColor),
+                        fontSize = 26.sp,
                         fontWeight = FontWeight.Bold
                     )
                 )
@@ -130,28 +147,28 @@ fun SinglePlayerWidgetContent(
                 )
             }
         } else {
-            val accentColor = parseColor(player.accentColorHex, defaultAccentHex)
             val level = AgeCalculator.calculateLevel(player.birthDate)
 
             Column(
                 modifier = GlanceModifier.fillMaxSize()
             ) {
-                // Large P1 / P2 / P3 Badge Header
+                // Header: P1
                 Text(
                     text = pTag,
                     style = TextStyle(
                         color = androidx.glance.unit.ColorProvider(accentColor),
-                        fontSize = 24.sp,
+                        fontSize = 26.sp,
                         fontWeight = FontWeight.Bold
                     )
                 )
 
-                // Role
+                // Subheader: <player_name> - <role>  (e.g., Syaiful - DAD)
+                val displayNameRole = "${player.name.uppercase()} - ${player.role.uppercase()}"
                 Text(
-                    text = player.role.uppercase(),
+                    text = displayNameRole,
                     style = TextStyle(
                         color = androidx.glance.unit.ColorProvider(Color(0xFFF5F7FA)),
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
                 )
@@ -176,33 +193,35 @@ fun SinglePlayerWidgetContent(
                     }
                 }
 
-                Spacer(modifier = GlanceModifier.height(6.dp))
+                if (showTagline) {
+                    Spacer(modifier = GlanceModifier.height(6.dp))
 
-                // Separator Line
-                Box(
-                    modifier = GlanceModifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Color(0xFF475569))
-                ) {}
+                    // Separator Line
+                    Box(
+                        modifier = GlanceModifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0xFF475569))
+                    ) {}
 
-                Spacer(modifier = GlanceModifier.height(6.dp))
+                    Spacer(modifier = GlanceModifier.height(6.dp))
 
-                // Tagline / Keywords
-                val taglineText = if (player.tagline.isNotBlank()) {
-                    player.tagline.replace("•", "\n").replace("-", "\n")
-                } else {
-                    DefaultRoles.getDefaultTaglineForRole(player.role).replace("•", "\n").replace("-", "\n")
-                }
+                    // Tagline Footer
+                    val taglineText = if (player.tagline.isNotBlank()) {
+                        player.tagline.replace("•", "\n").replace("-", "\n")
+                    } else {
+                        DefaultRoles.getDefaultTaglineForRole(player.role).replace("•", "\n").replace("-", "\n")
+                    }
 
-                Text(
-                    text = taglineText.uppercase(),
-                    style = TextStyle(
-                        color = androidx.glance.unit.ColorProvider(Color(0xFF94A3B8)),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
+                    Text(
+                        text = taglineText.uppercase(),
+                        style = TextStyle(
+                            color = androidx.glance.unit.ColorProvider(Color(0xFF94A3B8)),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     )
-                )
+                }
             }
         }
     }
@@ -253,17 +272,20 @@ private fun SlimStatRow(stat: Stat, accentColor: Color) {
 }
 
 private fun parseColor(hex: String, defaultHex: String = "#2196F3"): Color {
+    return Color(parseColorInt(hex, defaultHex))
+}
+
+private fun parseColorInt(hex: String, defaultHex: String = "#2196F3"): Int {
     return try {
         val clean = if (hex.startsWith("#")) hex.substring(1) else hex
         val colorInt = clean.toLong(16).toInt()
-        val full = if (clean.length == 6) colorInt or 0xFF000000.toInt() else colorInt
-        Color(full)
+        if (clean.length == 6) colorInt or 0xFF000000.toInt() else colorInt
     } catch (e: Exception) {
         try {
             val cleanDefault = if (defaultHex.startsWith("#")) defaultHex.substring(1) else defaultHex
-            Color(cleanDefault.toLong(16).toInt() or 0xFF000000.toInt())
+            cleanDefault.toLong(16).toInt() or 0xFF000000.toInt()
         } catch (e2: Exception) {
-            Color(0xFF2196F3)
+            0xFF2196F3.toInt()
         }
     }
 }
